@@ -407,7 +407,7 @@ def results_to_csv(config: namedtuple, val_metrics: dict, attn_metrics: dict, ou
 def main():
     parser = argparse.ArgumentParser(description="Run a single experiment and dump it's output.")
     parser.add_argument('--article_sections', dest='article_sections', default='all', help='which article sections to load')
-    parser.add_argument('--ico_encoder', dest='ico_encoder', default='GRU', help='CBoW or GRU or biGRU?')
+    parser.add_argument('--ico_encoder', dest='ico_encoder', default='CBoW', help='CBoW or GRU or biGRU?')
     parser.add_argument('--article_encoder', dest='article_encoder', default='GRU', help='CBoW or GRU?')
     parser.add_argument('--attn', dest='attn', action='store_true', default=False, help='Do we want an attention function?')
     parser.add_argument('--cond_attn', dest='cond_attn', action='store_true', default=False, help='Do we want to condition our attention?')

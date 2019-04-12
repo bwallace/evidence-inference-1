@@ -19,12 +19,13 @@ import torch.nn as nn
 from torch.nn import functional as F
 from torch.autograd import Variable
 
-USE_CUDA = True
+USE_CUDA = False#True
 
 from evidence_inference.preprocess.preprocessor import SimpleInferenceVectorizer as SimpleInferenceVectorizer
 from evidence_inference.models.utils import PaddedSequence
 from evidence_inference.models.attention_distributions import TokenAttention, evaluate_model_attention_distribution
 
+from evidence_inference.models.transformer import TransformerEncoder
 
 class CBoWEncoder(nn.Module):
     """Bag of words encoder for Intervention (also Comparator, Outcome) token sequences.
@@ -159,7 +160,7 @@ class InferenceNet(nn.Module):
     * passing the encoded result through a linear layer and then a softmax
     """
 
-    def __init__(self, vectorizer, h_size=32,
+    def __init__(self, vectorizer, h_size=16,
                  init_embeddings=None,
                  init_wvs_path="embeddings/PubMed-w2v.bin",
                  weight_tying=False,
@@ -200,7 +201,7 @@ class InferenceNet(nn.Module):
                 MLP_input_size = self.ICO_dims + init_embedding_weights.embedding_dim
                 if h_size:
                     print("Warning: ignoring the hidden size as the article encoder is CBoW and emits a fixed output")
-            elif article_encoder == 'GRU' or article_encoder == 'biGRU':
+            elif article_encoder in ('GRU', 'biGRU', 'transformer'):
                 self.ICO_dims = init_embedding_weights.embedding_dim * 3
                 MLP_input_size = self.ICO_dims + h_size
             else:
@@ -218,7 +219,7 @@ class InferenceNet(nn.Module):
             if article_encoder == 'CBoW':
                 # note that the CBoW encoder ignores the h_size here
                 MLP_input_size = self.ICO_dims + init_embedding_weights.embedding_dim
-            elif article_encoder == 'GRU' or article_encoder == 'biGRU':
+            elif article_encoder in ('GRU', 'biGRU', 'transformer'):
                 MLP_input_size = self.ICO_dims + h_size  # the input to the MLP is the concatentation of the ICO hidden states and the article hidden states.
             else:
                 raise ValueError("Unknown article_encoder type {}".format(article_encoder))
@@ -242,6 +243,10 @@ class InferenceNet(nn.Module):
                                                condition_attention=condition_attention,
                                                tokenwise_attention=tokenwise_attention,
                                                query_dims=self.ICO_dims)
+        elif article_encoder == 'transformer':
+            self.article_encoder = TransformerEncoder(vocab_size=vocab_size,
+                                                      embeddings=init_embedding_weights,
+                                                      d_model=h_size)
         else:
             raise ValueError("Unknown article encoder type: {}".format(article_encoder))
 
@@ -338,13 +343,16 @@ class InferenceNet(nn.Module):
                     print("weights:", ", ".join(str(x) for x in bottom_words_weights))
 
         else:
-            if self.article_encoder_type == 'CBoW':
+            if self.article_encoder_type in ('CBoW', 'transformer'):
                 # TODO implement attention for the CBoW model
                 a_v = self.article_encoder(article_tokens)
-            elif self.article_encoder_type == 'GRU' or self.article_encoder_type == 'biGRU':
+            elif self.article_encoder_type in ('GRU', 'biGRU'):
                 _, a_v = self.article_encoder(article_tokens)
             else:
                 raise ValueError("Unknown article encoder type {}".format(self.article_encoder_type))
+
+
+        import pdb; pdb.set_trace()
 
         # TODO document this
         if len(a_v.size()) == 3:
