@@ -386,6 +386,181 @@ class InferenceNet(nn.Module):
         return embedding
 
 
+
+''' 
+Begin: Exploiting document structure
+'''
+class EvidenceInferenceSections(InferenceNet):
+    """ 
+    An extension of inference net that implements more attention variants.
+    
+    @param recursive_encoding means to apply attention on tokens, sub-sections, and larger sections.
+    @param 
+    """
+
+    def __init__(self, vectorizer, h_size=32,
+                 init_embeddings=None,
+                 init_wvs_path="embeddings/PubMed-w2v.bin",
+                 weight_tying=False,
+                 ICO_encoder="CBoW",
+                 article_encoder="GRU",
+                 condition_attention=False,
+                 tokenwise_attention=False,
+                 tune_embeddings=False,
+                 section_attn_embedding=32,
+                 use_attention_over_article_tokens = False,
+                 recursive_encoding = False):
+        
+        super(EvidenceInferenceSections, self).__init__(vectorizer, h_size,
+                                                         init_embeddings = init_embeddings,
+                                                         init_wvs_path = init_wvs_path,
+                                                         weight_tying = weight_tying,
+                                                         ICO_encoder = ICO_encoder,
+                                                         article_encoder = article_encoder,
+                                                         attention_over_article_tokens = use_attention_over_article_tokens,
+                                                         condition_attention = condition_attention,
+                                                         tokenwise_attention = tokenwise_attention,
+                                                         tune_embeddings = tune_embeddings)
+        
+        
+        self.section_attn = SectionAttention(section_attn_embedding, self.ICO_dims, condition_attention, True)
+        self.use_attention_over_article_tokens = use_attention_over_article_tokens
+        self.recursive_encoding = recursive_encoding
+
+    def forward(self, article_tokens: PaddedSequence, indices, 
+                I_tokens: PaddedSequence, C_tokens: PaddedSequence, O_tokens: PaddedSequence, batch_size,
+                h_dropout_rate=0.2, recursive_encoding = {}):
+         
+        inner_batch = 32
+        
+        ### Run our encode function ###
+        I_v, C_v, O_v = self._encode(I_tokens, C_tokens, O_tokens)
+        
+        query_v, old_query_v = None, None
+        ### Run normal attention over the data ###
+        if self.article_encoder.condition_attention:
+            query_v = torch.cat([I_v, C_v, O_v], dim=1)
+            old_query_v = copy.deepcopy(query_v)
+            
+        if self.use_attention_over_article_tokens:
+            cmb_hidden = []
+            ### encode each section with the article encoder ###
+            for i in range(0, len(article_tokens[0]), inner_batch):
+                tokens = article_tokens[0][i:i+inner_batch]
+                new_tkn = PaddedSequence.autopad(tokens, batch_first = True)
+                query_v = torch.cat([old_query_v for _ in range(min(len(tokens), inner_batch))], dim = 0)
+                _, hidden, _ = self.article_encoder(new_tkn, query_v_for_attention=query_v)
+                cmb_hidden.append(hidden)
+            
+            hidden = torch.cat(cmb_hidden, dim = 0)
+        else:
+            if self.article_encoder in ("Transformer", "CBoW"):
+                hidden = self.article_encoder(article_tokens, query_v_for_attention=query_v)
+            else:
+                # assume RNN
+                _, hidden = self.article_encoder(article_tokens, query_v_for_attention=query_v)
+             
+        art_secs = []; token_secs = []; i = 0
+        ### Reshape our tokens + article representations. ###
+        for idx in indices:
+            art_secs.append(hidden[i:i + idx]); token_secs.append(article_tokens[i:i+idx]); i += idx
+        
+        hidden_articles = art_secs; batch_a_v = None; section_weights = []
+        
+        for i in range(batch_size):
+            hidden_art = hidden_articles[i] # single hidden article
+            token_art  = token_secs[i]      # single article tokens
+                
+            query_v = torch.cat([old_query_v for _ in range(len(hidden_art))], dim = 0)
+            
+            ### Run section attention over the data for each section ###
+            a = self.section_attn(token_art,
+                                  hidden_input_states=hidden_art, 
+                                  query_v_for_attention=query_v, 
+                                  normalize=True)
+
+            section_weights.append(a)
+            
+            if self.recursive_encoding:
+                section_splits = recursive_encoding['section_splits']
+                new_articles = []; last = 0 
+                
+                ### -> Reweight sections based on subsection:
+                # [Alpha(S1.1), Alpha(S1.2)] * [Encoding of S1.1, Encoding of S1.2])
+                for s in section_splits:
+                    section_encoding = hidden_art[last:last+s]
+                    ws               = a[last:last+s]
+                    new_articles.append(torch.mm(torch.transpose(ws, dim0=1, dim1=0), section_encoding))
+
+                ### -> another attention layer (share it) 
+                new_tokens     = recursive_encoding['big_sections']
+                hidden_art     = torch.cat(new_articles, dim = 0).unsqueeze(0)
+            
+                new_query_v    = torch.cat([old_query_v for _ in range(hidden_art.shape[1])], dim = 0)
+                a = self.section_attn(new_tokens,
+                                      hidden_input_states=hidden_art, 
+                                      query_v_for_attention=new_query_v, 
+                                      normalize=True)
+                
+            ### Combine the re-weighted sections ### 
+            weighted = (a * hidden_art).squeeze().unsqueeze(0)
+            weighted_hidden = torch.sum(weighted, dim=1)
+            article_v = torch.sum(weighted_hidden, dim = 0)
+             
+            if batch_a_v is None: 
+                batch_a_v = article_v
+            else:   
+                batch_a_v = torch.stack([batch_a_v, article_v]) # per batch
+        
+        ### Finish Plugging in ###
+        if len(batch_a_v.shape) == 1:
+            batch_a_v = batch_a_v.unsqueeze(0)
+            
+        h = torch.cat([batch_a_v, I_v, C_v, O_v], dim=1)
+        raw_out = self.out(self.MLP_hidden(h))
+
+        return F.softmax(raw_out, dim=1), section_weights
+
+
+class SectionAttention(nn.Module):
+
+    def __init__(self, encoding_size, query_dims=0, condition_attention=False, tokenwise_attention=False):
+        super(SectionAttention, self).__init__()
+        
+        self.condition_attention = condition_attention
+        if condition_attention:
+            self.attn_MLP_hidden_dims = 32
+            self.attn_input_dims = encoding_size + query_dims
+            self.token_attention_F = nn.Sequential(
+                nn.Linear(self.attn_input_dims, self.attn_MLP_hidden_dims),
+                nn.Tanh(),
+                nn.Linear(self.attn_MLP_hidden_dims, 1))
+        else:
+            self.token_attention_F = nn.Linear(encoding_size, 1)
+            
+        if tokenwise_attention:
+            self.attn_sm = nn.Sigmoid()
+        else:
+            self.attn_sm = nn.Softmax(dim=1)
+            
+    def forward(self, word_inputs, hidden_input_states: torch.Tensor, query_v_for_attention, normalize=True):
+        if self.condition_attention:
+            if len(hidden_input_states.shape) > 2:
+                query_v_for_attention = query_v_for_attention.unsqueeze(dim=0)
+            
+            ### Number of sections limit? ###
+            hidden_input_states = torch.cat([hidden_input_states, query_v_for_attention], dim=-1)
+
+        raw_word_scores = self.token_attention_F(hidden_input_states)
+        a = self.attn_sm(raw_word_scores)
+
+        return a
+
+''' 
+End: Exploiting document structure
+'''
+
+
 def _get_y_vec(y_dict, as_vec=True, majority_lbl=True) -> torch.LongTensor:
     # +1 because raw labels are -1, 0, 1 -> 0, 1, 2
     # for indexing reasons that appear in the loss function
@@ -535,6 +710,8 @@ def train(ev_inf: InferenceNet, train_Xy, val_Xy, test_Xy, inference_vectorizer,
             verbose_attn = (epoch == epochs - 1 and i == 0) or (epoch == 0 and i == 0)
             if verbose_attn:
                 print("Training attentions:")
+
+
             tags = ev_inf(articles, Is, Cs, Os, batch_size=len(instances), verbose_attn=verbose_attn)
             loss = criterion(tags, ys)
             #if loss.item() != loss.item():
