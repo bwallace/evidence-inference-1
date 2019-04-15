@@ -19,16 +19,17 @@ import torch
 import torch.nn as nn
 from torch.nn import functional as F
 from evidence_inference.models.utils import PaddedSequence
-from evidence_inference.models.model_0 import InferenceNet
+from evidence_inference.models.model_0 import *
 from evidence_inference.experiments.model_0_paper_experiment import get_data
 from evidence_inference.models.train_section_attn import train_section_attn
+
 USE_CUDA = True
 
 def main():
     """
     Load in data, and run the model.
     """
-    train_Xy, val_Xy, test_Xy, inference_vectorizer = get_data(mode = 'experiment')
+    train_Xy, val_Xy, test_Xy, inference_vectorizer = get_data(mode = 'minimal')
     
     
     nn_sec_attn = EvidenceInferenceSections(inference_vectorizer, 
