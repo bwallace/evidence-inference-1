@@ -18,7 +18,7 @@ import numpy as np
 import torch.nn as nn
 from torch import optim
 from evidence_inference.models.model_0 import InferenceNet, _get_y_vec
-from evidence_inference.models.structural_attn.section_attn_helper import split_sections, gen_recursive_encoding, gen_histogram
+from evidence_inference.models.section_attn_helper import split_sections, gen_recursive_encoding, gen_histogram
 from evidence_inference.models.attention_distributions import pretrain_attention, get_article_attention_weights, prepare_article_attention_target
 
 USE_CUDA = True
