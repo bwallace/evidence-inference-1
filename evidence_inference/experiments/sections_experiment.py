@@ -35,7 +35,7 @@ def main():
     nn_sec_attn = EvidenceInferenceSections(inference_vectorizer, 
                                               h_size=32,
                                               init_embeddings=None,
-                                              init_wvs_path="/media/embeddings/PubMed-w2v.bin",
+                                              init_wvs_path="embeddings/PubMed-w2v.bin",
                                               weight_tying=False,
                                               ICO_encoder="CBoW",
                                               article_encoder="GRU",
