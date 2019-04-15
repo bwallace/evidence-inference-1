@@ -198,7 +198,7 @@ def train_section_attn(ev_inf: InferenceNet,
                                                                                           recursive_encoding = recursive_encoding)
             
             #import pdb; pdb.set_trace() # Try to get statistics for things. 
-            gen_histogram(sec_text, section_weights, sec_labels, epoch)
+            #gen_histogram(sec_text, section_weights, sec_labels, epoch)
             
             val_loss = criterion(val_y_hat, val_y.squeeze())
             y_hat = [int(np.argmax(y_i.cpu())) for y_i in val_y_hat]
@@ -238,7 +238,7 @@ def train_section_attn(ev_inf: InferenceNet,
                                                                                     gen_big_sections = gen_big_sections, 
                                                                                     recursive_encoding = recursive_encoding)
         
-    gen_histogram(sec_text, section_weights, sec_labels, epoch)
+    #gen_histogram(sec_text, section_weights, sec_labels, epoch)
             
     test_loss = criterion(test_y_hat, test_y.squeeze())
     y_hat = [int(np.argmax(y_i.cpu())) for y_i in test_y_hat]
