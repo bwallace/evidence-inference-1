@@ -78,12 +78,32 @@ def extract_raw_text(article, sections_of_interest=None):
         
     return raw_text.replace("<p>", "")
 
+def extract_section_text(article):
+    """
+    Takes in an article, and maps section headers to the text that would be produced.
+    """
+    sections_of_interest = article.article_dict.keys()
+   
+    ti_ab = article.ti_ab_str()
+
+    article_sections = [sec for sec in article.article_dict.keys() if any(
+                            [s in sec for s in sections_of_interest])]
+        
+    section_mapping = {'Title': (ti_ab + "  ").replace("<p>", "")}
+    for section_header in article_sections:
+        section_mapping[section_header] = article.to_raw_str(fields=[section_header]).replace("<p>", "")           
+            
+        ## if not the last one
+        if article_sections[-1] != section_header:
+            section_mapping[section_header] += "\n\n"
+        
+    return section_mapping
+
 
 def extract_text_from_prompts(prompts_df):
     I, C, O = prompts_df['Intervention'].values, prompts_df['Comparator'].values, prompts_df['Outcome'].values
     all_prompt_text = [s.lower() for s in np.concatenate([I, C, O])]
     return all_prompt_text
-
 
 def get_inference_vectorizer(article_ids=None, sections_of_interest=None, vocabulary_file=None):
 
@@ -137,12 +157,16 @@ def read_prompts():
 
 def assemble_Xy_for_prompts(training_prompts, inference_vectorizer, lbls_too=False, annotations=None, sections_of_interest=None, include_sentence_span_splits = False): 
     Xy = []
+
     for prompt_id in training_prompts[PROMPT_ID_COL_NAME].values:
         if lbls_too:
             Xy_dict = inference_vectorizer.vectorize(training_prompts, prompt_id, 
                                 include_lbls=True, annotations_df=annotations, sections_of_interest=sections_of_interest, include_sentence_span_splits = include_sentence_span_splits)
         else:
-            Xy_dict = inference_vectorizer.vectorize(training_prompts, prompt_id, sections_of_interest=sections_of_interest, include_sentence_span_splits = include_sentence_span_splits)
+            Xy_dict = inference_vectorizer.vectorize(training_prompts, 
+                                                     prompt_id, 
+                                                     sections_of_interest=sections_of_interest, 
+                                                     include_sentence_span_splits = include_sentence_span_splits)
         Xy.append(Xy_dict)
     return Xy
 
@@ -193,7 +217,11 @@ def get_train_Xy(train_doc_ids, sections_of_interest=None, vocabulary_file=None,
     training_prompts = prompts[prompts[STUDY_ID_COL].isin(train_doc_ids)]
 
     training_prompts = pd.DataFrame(training_prompts)
-    train_Xy = assemble_Xy_for_prompts(training_prompts, inference_vectorizer, lbls_too=True, annotations=annotations, include_sentence_span_splits = include_sentence_span_splits)
+    train_Xy = assemble_Xy_for_prompts(training_prompts, 
+                                       inference_vectorizer, 
+                                       lbls_too=True, 
+                                       annotations=annotations, 
+                                       include_sentence_span_splits = include_sentence_span_splits)
 
     return train_Xy, inference_vectorizer
 
@@ -212,7 +240,10 @@ def get_Xy(docids, inference_vectorizer: 'SimpleInferenceVectorizer', sections_o
     prompts = pd.DataFrame(prompts)
 
     prompts = prompts[prompts[STUDY_ID_COL].isin(docids)]
-    Xy = assemble_Xy_for_prompts(prompts, inference_vectorizer, lbls_too=True, annotations=annotations, sections_of_interest=sections_of_interest, include_sentence_span_splits = include_sentence_span_splits)
+    Xy = assemble_Xy_for_prompts(prompts, inference_vectorizer, lbls_too=True, 
+                                 annotations=annotations, 
+                                 sections_of_interest=sections_of_interest, 
+                                 include_sentence_span_splits = include_sentence_span_splits)
     return Xy
 
 
@@ -246,7 +277,7 @@ class SimpleInferenceVectorizer:
         """
         if include_lbls and annotations_df is None:
             raise ValueError("When including annotations, they must already be defined")
-
+        
         prompt = prompts_df[prompts_df[PROMPT_ID_COL_NAME]==prompt_id]
 
         ###
@@ -262,8 +293,27 @@ class SimpleInferenceVectorizer:
         I_v = self.string_to_seq(prompt["Intervention"].values[0].lower())
         C_v = self.string_to_seq(prompt["Comparator"].values[0].lower())
         O_v = self.string_to_seq(prompt["Outcome"].values[0].lower())
-
-        return_dict = {"article":vectorized_article, "I":I_v, "C":C_v, "O":O_v, "a_id": article_id, "p_id": prompt_id}
+        
+        ###
+        # if we want section splits, we need to encode individual sections and count
+        sections = extract_section_text(article)
+        lengths = []
+        section_titles = []
+        for k in sections.keys():
+            lengths.append(len(self.string_to_seq(sections[k])))
+            section_titles.append(k)
+            
+        if not(sum(lengths) == len(vectorized_article)):
+            import pdb; pdb.set_trace()
+        
+        return_dict = {"article":vectorized_article, 
+                       "I":I_v, 
+                       "C":C_v, 
+                       "O":O_v, 
+                       "a_id": article_id, 
+                       "p_id": prompt_id, 
+                       "section_splits":lengths,
+                       "section_titles": section_titles}
 
         if include_lbls:
             # then also read out the labels.
