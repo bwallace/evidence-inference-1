@@ -456,11 +456,11 @@ class EvidenceInferenceSections(InferenceNet):
             if query_v is not None:
                 query_v = torch.cat([old_query_v for _ in range(min(len(tokens), inner_batch))], dim = 0)
             #_, hidden, _ = self.article_encoder(new_tkn, query_v_for_attention=query_v)
-            if self.article_encoder in ("Transformer", "CBoW"):
-                hidden = self.article_encoder(article_tokens, query_v_for_attention=query_v)
+            if self.article_encoder in ("transformer", "CBoW"):
+                hidden = self.article_encoder(new_tkn, query_v_for_attention=query_v)
             else:
                 # assume RNN
-                _, hidden = self.article_encoder(article_tokens, query_v_for_attention=query_v)
+                _, hidden = self.article_encoder(new_tkn, query_v_for_attention=query_v)
 
             cmb_hidden.append(hidden)
             
