@@ -448,6 +448,7 @@ class EvidenceInferenceSections(InferenceNet):
             query_v = torch.cat([I_v, C_v, O_v], dim=1)
             old_query_v = copy.deepcopy(query_v)
             
+        import pdb; pdb.set_trace()
         if self.use_attention_over_article_tokens:
             cmb_hidden = []
             ### encode each section with the article encoder ###
