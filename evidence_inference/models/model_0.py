@@ -246,7 +246,8 @@ class InferenceNet(nn.Module):
         elif article_encoder == 'transformer':
             self.article_encoder = TransformerEncoder(vocab_size=vocab_size,
                                                       embeddings=init_embedding_weights,
-                                                      d_model=h_size)
+                                                      d_model=h_size,
+                                                      condition_attention=condition_attention)
         else:
             raise ValueError("Unknown article encoder type: {}".format(article_encoder))
 

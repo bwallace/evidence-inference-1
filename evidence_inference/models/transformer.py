@@ -1,3 +1,12 @@
+
+'''
+Transformer encoder for evidence-inference.
+
+Note that this implementation largely cribbed and modified from the excellent 
+"attention is all you need" implementation by Alexander Rush:
+
+http://nlp.seas.harvard.edu/2018/04/03/attention.html
+'''
 import numpy as np
 import torch
 import torch.nn as nn
@@ -171,11 +180,15 @@ import copy
 
 class TransformerEncoder(nn.Module):
 
-    def __init__(self, vocab_size, embeddings: nn.Embedding=None, embedding_dims=200, use_attention=False,
-                 N=3, d_model=128, d_ff=512, h=8, dropout=0.1):
+    def __init__(self, vocab_size, embeddings: nn.Embedding=None, embedding_dims=200, 
+                 use_attention=False, condition_attention=False,
+                 N=3, d_model=128, d_ff=256, h=8, dropout=0.1):
 
         super(TransformerEncoder, self).__init__()
 
+        # this is poorly named since, of course, the transformer *always*
+        # uses self-attention; this refers to token-level attention over
+        # the article, which is distinct.
         self.use_attention = False 
 
         c = copy.deepcopy
@@ -192,6 +205,7 @@ class TransformerEncoder(nn.Module):
         #import pdb; pdb.set_trace()
         #input_layer = init_word_embeddings = nn.Embedding(num_embeddings=num_embeddings, embedding_dim=embedding_dim, padding_idx=inference_vectorizer.str_to_idx[inference_vectorizer.PAD], _weight=torch.FloatTensor((num_embeddings, embedding_dim)))
         
+        self.condition_attention = condition_attention
         layer_to_repeat = EncoderLayer(d_model, c(attn), c(ff), dropout)
         self.model = Encoder(self.embedding, d_model, layer_to_repeat, N)
 
@@ -201,7 +215,7 @@ class TransformerEncoder(nn.Module):
             if p.dim() > 1:
                 nn.init.xavier_uniform(p)
 
-    def forward(self, word_inputs : PaddedSequence, mask=None):
+    def forward(self, word_inputs : PaddedSequence, mask=None, query_v=None):
         if self.use_attention:
             raise Error("Attention not ready for transformer yet")
         else:
