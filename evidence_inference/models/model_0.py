@@ -390,6 +390,8 @@ class InferenceNet(nn.Module):
 
 ''' 
 Begin: Exploiting document structure
+@TODO refactor! this module is getting absurdly 
+large, even for research code.
 '''
 class EvidenceInferenceSections(InferenceNet):
     """ 
@@ -432,6 +434,8 @@ class EvidenceInferenceSections(InferenceNet):
                 I_tokens: PaddedSequence, C_tokens: PaddedSequence, O_tokens: PaddedSequence, batch_size,
                 h_dropout_rate=0.2, recursive_encoding = {}):
          
+        # 4/15 @TODO drop TransformerEncoder in here!
+        # also walk through this w/eric
         inner_batch = 32
         
         ### Run our encode function ###
@@ -471,8 +475,9 @@ class EvidenceInferenceSections(InferenceNet):
         for i in range(batch_size):
             hidden_art = hidden_articles[i] # single hidden article
             token_art  = token_secs[i]      # single article tokens
-                
-            query_v = torch.cat([old_query_v for _ in range(len(hidden_art))], dim = 0)
+             
+            if self.condition_attention:   
+                query_v = torch.cat([old_query_v for _ in range(len(hidden_art))], dim = 0)
             
             ### Run section attention over the data for each section ###
             a = self.section_attn(token_art,
