@@ -429,6 +429,7 @@ class EvidenceInferenceSections(InferenceNet):
         self.section_attn = SectionAttention(section_attn_embedding, self.ICO_dims, condition_attention, True)
         self.use_attention_over_article_tokens = use_attention_over_article_tokens
         self.recursive_encoding = recursive_encoding
+        self.condition_attention = condition_attention
 
     def forward(self, article_tokens: PaddedSequence, indices, 
                 I_tokens: PaddedSequence, C_tokens: PaddedSequence, O_tokens: PaddedSequence, batch_size,
@@ -475,7 +476,7 @@ class EvidenceInferenceSections(InferenceNet):
         for i in range(batch_size):
             hidden_art = hidden_articles[i] # single hidden article
             token_art  = token_secs[i]      # single article tokens
-             
+
             if self.condition_attention:   
                 query_v = torch.cat([old_query_v for _ in range(len(hidden_art))], dim = 0)
             
