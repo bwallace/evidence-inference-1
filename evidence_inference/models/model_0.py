@@ -19,7 +19,7 @@ import torch.nn as nn
 from torch.nn import functional as F
 from torch.autograd import Variable
 
-USE_CUDA = False#True
+USE_CUDA = True
 
 from evidence_inference.preprocess.preprocessor import SimpleInferenceVectorizer as SimpleInferenceVectorizer
 from evidence_inference.models.utils import PaddedSequence
@@ -353,7 +353,6 @@ class InferenceNet(nn.Module):
                 raise ValueError("Unknown article encoder type {}".format(self.article_encoder_type))
 
 
-        import pdb; pdb.set_trace()
 
         # TODO document this
         if len(a_v.size()) == 3:
@@ -676,6 +675,7 @@ def train(ev_inf: InferenceNet, train_Xy, val_Xy, test_Xy, inference_vectorizer,
         test_Xy.sort(key=lambda x: len(x['article']))
     print("Using {} training examples, {} validation examples, {} testing examples".format(len(train_Xy), len(val_Xy), len(test_Xy)))
     most_common = stats.mode([_get_majority_label(inst) for inst in train_Xy])[0][0]
+    
 
     best_val_model = None
     best_val_f1 = float('-inf')

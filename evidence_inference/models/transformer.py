@@ -36,7 +36,6 @@ class Encoder(nn.Module):
         
     def forward(self, word_inputs, mask=None):
         "Pass the input (and mask) through each layer in turn."
-
         if isinstance(word_inputs, PaddedSequence):
             embedded = self.input_layer(word_inputs.data)
             x = self.linear_layer(embedded)
@@ -183,7 +182,7 @@ class TransformerEncoder(nn.Module):
 
     def __init__(self, vocab_size, embeddings: nn.Embedding=None, embedding_dims=200, 
                  use_attention=False, condition_attention=False,
-                 N=6, d_model=128, d_ff=2048, h=8, dropout=0.1):
+                 N=3, d_model=128, d_ff=256, h=8, dropout=0.1):
 
         super(TransformerEncoder, self).__init__()
 
