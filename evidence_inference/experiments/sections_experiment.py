@@ -29,7 +29,7 @@ def main():
     """
     Load in data, and run the model.
     """
-    train_Xy, val_Xy, test_Xy, inference_vectorizer = get_data(mode = 'minimal')
+    train_Xy, val_Xy, test_Xy, inference_vectorizer = get_data(mode = 'experiment')
     
     
     nn_sec_attn = EvidenceInferenceSections(inference_vectorizer, 
@@ -39,11 +39,11 @@ def main():
                                               weight_tying=False,
                                               ICO_encoder="CBoW",
                                               article_encoder="GRU",
-                                              condition_attention=True,
+                                              condition_attention=False,
                                               tokenwise_attention=False,
                                               tune_embeddings=False,
                                               section_attn_embedding=32,
-                                              use_attention_over_article_tokens=True, 
+                                              use_attention_over_article_tokens=False, 
                                               recursive_encoding = False)
     
     results = train_section_attn(nn_sec_attn, 
