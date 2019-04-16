@@ -435,8 +435,7 @@ class EvidenceInferenceSections(InferenceNet):
                 I_tokens: PaddedSequence, C_tokens: PaddedSequence, O_tokens: PaddedSequence, batch_size,
                 h_dropout_rate=0.2, recursive_encoding = {}):
          
-        # 4/15 @TODO drop TransformerEncoder in here!
-        # also walk through this w/eric
+  
         inner_batch = 32
         
         ### Run our encode function ###
@@ -448,24 +447,31 @@ class EvidenceInferenceSections(InferenceNet):
             query_v = torch.cat([I_v, C_v, O_v], dim=1)
             old_query_v = copy.deepcopy(query_v)
             
-        import pdb; pdb.set_trace()
-        if self.use_attention_over_article_tokens:
-            cmb_hidden = []
-            ### encode each section with the article encoder ###
-            for i in range(0, len(article_tokens[0]), inner_batch):
-                tokens = article_tokens[0][i:i+inner_batch]
-                new_tkn = PaddedSequence.autopad(tokens, batch_first = True)
-                query_v = torch.cat([old_query_v for _ in range(min(len(tokens), inner_batch))], dim = 0)
-                _, hidden, _ = self.article_encoder(new_tkn, query_v_for_attention=query_v)
-                cmb_hidden.append(hidden)
-            
-            hidden = torch.cat(cmb_hidden, dim = 0)
-        else:
+        #if self.use_attention_over_article_tokens:
+        cmb_hidden = []
+        ### encode each section with the article encoder ###
+        for i in range(0, len(article_tokens[0]), inner_batch):
+            tokens = article_tokens[0][i:i+inner_batch]
+            new_tkn = PaddedSequence.autopad(tokens, batch_first = True)
+            query_v = torch.cat([old_query_v for _ in range(min(len(tokens), inner_batch))], dim = 0)
+            #_, hidden, _ = self.article_encoder(new_tkn, query_v_for_attention=query_v)
             if self.article_encoder in ("Transformer", "CBoW"):
                 hidden = self.article_encoder(article_tokens, query_v_for_attention=query_v)
             else:
                 # assume RNN
                 _, hidden = self.article_encoder(article_tokens, query_v_for_attention=query_v)
+
+            cmb_hidden.append(hidden)
+            
+        hidden = torch.cat(cmb_hidden, dim = 0)
+        import pdb; pdb.set_trace
+        #else:
+        #    if self.article_encoder in ("Transformer", "CBoW"):
+        #
+        #        hidden = self.article_encoder(article_tokens, query_v_for_attention=query_v)
+        #    else:
+                # assume RNN
+        #        _, hidden = self.article_encoder(article_tokens, query_v_for_attention=query_v)
              
         art_secs = []; token_secs = []; i = 0
         ### Reshape our tokens + article representations. ###
