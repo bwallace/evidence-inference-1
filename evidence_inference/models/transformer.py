@@ -182,7 +182,7 @@ class TransformerEncoder(nn.Module):
 
     def __init__(self, vocab_size, embeddings: nn.Embedding=None, embedding_dims=200, 
                  use_attention=False, condition_attention=False,
-                 N=3, d_model=128, d_ff=256, h=8, dropout=0.1):
+                 N=1, d_model=64, d_ff=16, h=1, dropout=0.1):
 
         super(TransformerEncoder, self).__init__()
 
@@ -215,7 +215,7 @@ class TransformerEncoder(nn.Module):
             if p.dim() > 1:
                 nn.init.xavier_uniform(p)
 
-    def forward(self, word_inputs : PaddedSequence, mask=None, query_v=None):
+    def forward(self, word_inputs : PaddedSequence, mask=None, query_v_for_attention=None):
         if self.use_attention:
             raise Error("Attention not ready for transformer yet")
         else:
