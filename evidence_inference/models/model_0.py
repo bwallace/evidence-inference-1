@@ -721,8 +721,11 @@ def train(ev_inf: InferenceNet, train_Xy, val_Xy, test_Xy, inference_vectorizer,
             random.shuffle(train_Xy)
 
         epoch_loss = 0
-        for i in range(0, len(train_Xy), batch_size):
-            instances = train_Xy[i:i+batch_size]
+        import gc
+        num_train = len(train_Xy)
+        for i in range(0, num_train, batch_size):
+            #instances = train_Xy[i:i+batch_size]
+            instances = train_Xy[num_train-batch_size*(i+1):num_train-(i*batch_size)]
             ys = torch.cat([_get_y_vec(inst['y'], as_vec=False) for inst in instances], dim=0)
             # TODO explain the use of padding here
             unk_idx = int(inference_vectorizer.str_to_idx[SimpleInferenceVectorizer.PAD])
@@ -747,12 +750,14 @@ def train(ev_inf: InferenceNet, train_Xy, val_Xy, test_Xy, inference_vectorizer,
             optimizer.step()
             del loss
             del tags
-            del articles            
+            del articles
+            del instances            
             print("on batch {0}".format(i))
+            
+            torch.cuda.empty_cache()
+            gc.collect()
             stat_cuda("mem usage after fwd/backward")
             print("\n")
-            torch.cuda.empty_cache()
-            
 
         val_metrics['train_loss'].append(epoch_loss)
 

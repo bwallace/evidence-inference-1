@@ -194,7 +194,7 @@ class TransformerEncoder(nn.Module):
         c = copy.deepcopy
         attn = MultiHeadedAttention(h, d_model)
         ff = PositionwiseFeedForward(d_model, d_ff, dropout)
-        position = PositionalEncoding(d_model, dropout)
+        #position = PositionalEncoding(d_model, dropout)
 
         if embeddings is None:
             self.embedding = nn.Embedding(vocab_size, embedding_dims)
@@ -208,6 +208,7 @@ class TransformerEncoder(nn.Module):
         self.condition_attention = condition_attention
         layer_to_repeat = EncoderLayer(d_model, c(attn), c(ff), dropout)
         self.model = Encoder(self.embedding, d_model, layer_to_repeat, N)
+        del layer_to_repeat 
 
         # This was important from their code. 
         # Initialize parameters with Glorot / fan_avg.
@@ -223,8 +224,9 @@ class TransformerEncoder(nn.Module):
             a_v = self.model(word_inputs, mask=mask)
             # when we are not imposing attention, we simply take the `first' 
             # transformed token representation
-            a_v = a_v[:,0,:]
-        return a_v
+            #a_v = a_v[:,0,:]
+            indices = torch.tensor([1]).cuda()
+            return torch.index_select(a_v, 1, indices).squeeze(1)
 
 
 '''
