@@ -728,8 +728,8 @@ def train(ev_inf: InferenceNet, train_Xy, val_Xy, test_Xy, inference_vectorizer,
             unk_idx = int(inference_vectorizer.str_to_idx[SimpleInferenceVectorizer.PAD])
             articles, Is, Cs, Os = [PaddedSequence.autopad([torch.LongTensor(inst[x]) for inst in instances], batch_first=True, padding_value=unk_idx) for x in ['article', 'I', 'C', 'O']]
             optimizer.zero_grad()
-            #print("\n\n---")
-            #stat_cuda("pre batch")
+            print("\n\n---")
+            stat_cuda("pre batch")
             if USE_CUDA:
                 articles, Is, Cs, Os = articles.cuda(), Is.cuda(), Cs.cuda(), Os.cuda()
                 ys = ys.cuda()
@@ -746,10 +746,13 @@ def train(ev_inf: InferenceNet, train_Xy, val_Xy, test_Xy, inference_vectorizer,
             loss.backward()
             optimizer.step()
             del loss
-            
+            del tags
+            del articles            
             print("on batch {0}".format(i))
-            #stat_cuda("mem usage after fwd/backward")
-            #print("\n")
+            stat_cuda("mem usage after fwd/backward")
+            print("\n")
+            torch.cuda.empty_cache()
+            
 
         val_metrics['train_loss'].append(epoch_loss)
 
