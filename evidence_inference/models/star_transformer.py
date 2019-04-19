@@ -168,7 +168,7 @@ class StarTransformerEncoder(nn.Module):
 
     def __init__(self, vocab_size, embeddings: nn.Embedding=None, embedding_dims=200, 
                  use_attention=False, condition_attention=False,
-                 N=6, d_model=128, h=8, dropout=0.1):
+                 N=3, d_model=128, h=4, dropout=0.1):
 
         super(StarTransformerEncoder, self).__init__()
 
