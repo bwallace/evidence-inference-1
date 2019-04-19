@@ -26,6 +26,7 @@ from evidence_inference.models.utils import PaddedSequence
 from evidence_inference.models.attention_distributions import TokenAttention, evaluate_model_attention_distribution
 
 from evidence_inference.models.transformer import TransformerEncoder
+from evidence_inference.models.star_transformer import StarTransformerEncoder
 
 class CBoWEncoder(nn.Module):
     """Bag of words encoder for Intervention (also Comparator, Outcome) token sequences.
@@ -244,7 +245,11 @@ class InferenceNet(nn.Module):
                                                tokenwise_attention=tokenwise_attention,
                                                query_dims=self.ICO_dims)
         elif article_encoder == 'transformer':
-            self.article_encoder = TransformerEncoder(vocab_size=vocab_size,
+            #self.article_encoder = TransformerEncoder(vocab_size=vocab_size,
+            #                                          embeddings=init_embedding_weights,
+            #                                          d_model=h_size,
+            #                                          condition_attention=condition_attention)
+            self.article_encoder = StarTransformerEncoder(vocab_size=vocab_size,
                                                       embeddings=init_embedding_weights,
                                                       d_model=h_size,
                                                       condition_attention=condition_attention)
@@ -346,6 +351,11 @@ class InferenceNet(nn.Module):
         else:
             if self.article_encoder_type in ('CBoW', 'transformer'):
                 # TODO implement attention for the CBoW model
+                
+                # when this is the transformer, we are currently 
+                # (in forward pass in TransformerEncoder) pulling
+                # out representation for first token -- obviously
+                # need to revisit.
                 a_v = self.article_encoder(article_tokens)
             elif self.article_encoder_type in ('GRU', 'biGRU'):
                 _, a_v = self.article_encoder(article_tokens)
@@ -436,7 +446,7 @@ class EvidenceInferenceSections(InferenceNet):
                 h_dropout_rate=0.2, recursive_encoding = {}):
          
   
-        inner_batch = 32
+        inner_batch = 1 # this is over sections!
         
         ### Run our encode function ###
         I_v, C_v, O_v = self._encode(I_tokens, C_tokens, O_tokens)
@@ -456,6 +466,7 @@ class EvidenceInferenceSections(InferenceNet):
             if query_v is not None:
                 query_v = torch.cat([old_query_v for _ in range(min(len(tokens), inner_batch))], dim = 0)
             #_, hidden, _ = self.article_encoder(new_tkn, query_v_for_attention=query_v)
+            import pdb; pdb.set_trace
             if self.article_encoder in ("transformer", "CBoW"):
                 hidden = self.article_encoder(new_tkn, query_v_for_attention=query_v)
             else:
@@ -465,7 +476,7 @@ class EvidenceInferenceSections(InferenceNet):
             cmb_hidden.append(hidden)
             
         hidden = torch.cat(cmb_hidden, dim = 0)
-        import pdb; pdb.set_trace
+        
         #else:
         #    if self.article_encoder in ("Transformer", "CBoW"):
         #
@@ -728,6 +739,7 @@ def train(ev_inf: InferenceNet, train_Xy, val_Xy, test_Xy, inference_vectorizer,
 
 
             tags = ev_inf(articles, Is, Cs, Os, batch_size=len(instances), verbose_attn=verbose_attn)
+            import pdb; pdb.set_trace()
             loss = criterion(tags, ys)
             #if loss.item() != loss.item():
             #    import pdb; pdb.set_trace()
