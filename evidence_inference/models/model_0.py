@@ -445,7 +445,7 @@ class EvidenceInferenceSections(InferenceNet):
                 I_tokens: PaddedSequence, C_tokens: PaddedSequence, O_tokens: PaddedSequence, batch_size,
                 h_dropout_rate=0.2, recursive_encoding = {}):
          
-  
+
         inner_batch = 1 # this is over sections!
         
         ### Run our encode function ###
@@ -466,7 +466,7 @@ class EvidenceInferenceSections(InferenceNet):
             if query_v is not None:
                 query_v = torch.cat([old_query_v for _ in range(min(len(tokens), inner_batch))], dim = 0)
             #_, hidden, _ = self.article_encoder(new_tkn, query_v_for_attention=query_v)
-            import pdb; pdb.set_trace
+
             if self.article_encoder in ("transformer", "CBoW"):
                 hidden = self.article_encoder(new_tkn, query_v_for_attention=query_v)
             else:
@@ -476,7 +476,7 @@ class EvidenceInferenceSections(InferenceNet):
             cmb_hidden.append(hidden)
             
         hidden = torch.cat(cmb_hidden, dim = 0)
-        
+
         #else:
         #    if self.article_encoder in ("Transformer", "CBoW"):
         #
@@ -678,6 +678,15 @@ def _get_majority_label(inst):
     return stats.mode(all_lbls)[0][0]
 
 
+def stat_cuda(msg):
+    print('--', msg)
+    print('allocated: %dM, max allocated: %dM, cached: %dM, max cached: %dM' % (
+        torch.cuda.memory_allocated() / 1024 / 1024,
+        torch.cuda.max_memory_allocated() / 1024 / 1024,
+        torch.cuda.memory_cached() / 1024 / 1024,
+        torch.cuda.max_memory_cached() / 1024 / 1024
+    ))
+
 def train(ev_inf: InferenceNet, train_Xy, val_Xy, test_Xy, inference_vectorizer, epochs=10, batch_size=16, shuffle=True):
     # we sort these so batches all have approximately the same length (ish), which decreases the 
     # average amount of padding needed, and thus total number of steps in training.
@@ -723,13 +732,18 @@ def train(ev_inf: InferenceNet, train_Xy, val_Xy, test_Xy, inference_vectorizer,
             random.shuffle(train_Xy)
 
         epoch_loss = 0
-        for i in range(0, len(train_Xy), batch_size):
-            instances = train_Xy[i:i+batch_size]
+        import gc
+        num_train = len(train_Xy)
+        for i in range(0, num_train, batch_size):
+            #instances = train_Xy[i:i+batch_size]
+            instances = train_Xy[num_train-batch_size*(i+1):num_train-(i*batch_size)]
             ys = torch.cat([_get_y_vec(inst['y'], as_vec=False) for inst in instances], dim=0)
             # TODO explain the use of padding here
             unk_idx = int(inference_vectorizer.str_to_idx[SimpleInferenceVectorizer.PAD])
             articles, Is, Cs, Os = [PaddedSequence.autopad([torch.LongTensor(inst[x]) for inst in instances], batch_first=True, padding_value=unk_idx) for x in ['article', 'I', 'C', 'O']]
             optimizer.zero_grad()
+            print("\n\n---")
+            stat_cuda("pre batch")
             if USE_CUDA:
                 articles, Is, Cs, Os = articles.cuda(), Is.cuda(), Cs.cuda(), Os.cuda()
                 ys = ys.cuda()
@@ -737,7 +751,7 @@ def train(ev_inf: InferenceNet, train_Xy, val_Xy, test_Xy, inference_vectorizer,
             if verbose_attn:
                 print("Training attentions:")
 
-
+            print("articles shape: {0}".format(articles.data.shape))
             tags = ev_inf(articles, Is, Cs, Os, batch_size=len(instances), verbose_attn=verbose_attn)
             import pdb; pdb.set_trace()
             loss = criterion(tags, ys)
@@ -746,6 +760,17 @@ def train(ev_inf: InferenceNet, train_Xy, val_Xy, test_Xy, inference_vectorizer,
             epoch_loss += loss.item()
             loss.backward()
             optimizer.step()
+            del loss
+            del tags
+            del articles
+            del instances            
+            print("on batch {0}".format(i))
+            
+            torch.cuda.empty_cache()
+            gc.collect()
+            stat_cuda("mem usage after fwd/backward")
+            print("\n")
+
         val_metrics['train_loss'].append(epoch_loss)
 
         with torch.no_grad():
