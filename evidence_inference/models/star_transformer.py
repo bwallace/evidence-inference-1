@@ -3,6 +3,9 @@ A very thin wrapper on top of the fastNLP (https://github.com/fastnlp/fastNLP/) 
 Encoder just to comply with the evidence inference interface.
 '''
 
+import torch
+import torch.nn as nn
+
 # pip install fastNLP; https://github.com/fastnlp/fastNLP/
 from fastNLP.modules.encoder import star_transformer
 
@@ -13,7 +16,7 @@ class StarTransformerEncoder(nn.Module):
 
     def __init__(self, vocab_size, embeddings: nn.Embedding=None, embedding_dims=200, 
                  use_attention=False, condition_attention=False,
-                 N=3, d_model=128, d_ff=256, h=8, dropout=0.1):
+                 N=6, d_model=128, h=8, dropout=0.1):
 
         super(StarTransformerEncoder, self).__init__()
 
@@ -41,16 +44,16 @@ class StarTransformerEncoder(nn.Module):
         if self.use_attention:
             raise Error("Attention not ready for star transformer yet")
         else:
-            embedded = self.embedding(word_inputs)
+            
+            embedded = self.embedding(word_inputs.data)
             projected = self.projection_layer(embedded)
+            mask = word_inputs.mask().to("cuda")
 
-            # when we are not imposing attention, we simply take the `first' 
-            # transformed token representation
-            import pdb; pdb.set_trace()
 
             # now to the star transformer
-            # the model will return <batch x article len x d_model> tensor.
-            a_v = self.st(projected, mask=mask)
-
- 
+            # the model will return a tuple comprising <batch, words, dims> and a second
+            # tensor (the rely nodes) of <batch, dims> -- we take the latter.
+            _, a_v = self.st(projected, mask=mask) 
+             
+            
         return a_v
