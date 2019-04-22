@@ -252,6 +252,7 @@ class InferenceNet(nn.Module):
             self.article_encoder = StarTransformerEncoder(vocab_size=vocab_size,
                                                       embeddings=init_embedding_weights,
                                                       d_model=h_size,
+                                                      concat_relay=True,
                                                       use_attention=attention_over_article_tokens,
                                                       condition_attention=condition_attention)
         else:
