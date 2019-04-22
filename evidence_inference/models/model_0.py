@@ -252,6 +252,7 @@ class InferenceNet(nn.Module):
             self.article_encoder = StarTransformerEncoder(vocab_size=vocab_size,
                                                       embeddings=init_embedding_weights,
                                                       d_model=h_size,
+                                                      use_attention=use_attention,
                                                       condition_attention=condition_attention)
         else:
             raise ValueError("Unknown article encoder type: {}".format(article_encoder))

@@ -1,27 +1,24 @@
 '''
-A very thin wrapper on top of the fastNLP (https://github.com/fastnlp/fastNLP/) StarTransformer
-Encoder just to comply with the evidence inference interface.
+A wrapper on top of the fastNLP (https://github.com/fastnlp/fastNLP/) StarTransformer
+Encoder. Implementation is based on:
+
+https://github.com/fastnlp/fastNLP/blob/master/fastNLP/modules/encoder/star_transformer.py
+
+Modified to accomodate evidence inference API and attention.
 '''
 
 import torch
 import torch.nn as nn
 
-# pip install fastNLP; https://github.com/fastnlp/fastNLP/
-#from fastNLP.modules.encoder import star_transformer
-
 
 from evidence_inference.models.utils import PaddedSequence
+from evidence_inference.models.attention_distributions import TokenAttention, evaluate_model_attention_distribution
 
 import torch
 from torch import nn
 from torch.nn import functional as F
 import numpy as NP
 
-''' 
-This is the implementation from the authors: 
-
-https://github.com/fastnlp/fastNLP/blob/master/fastNLP/modules/encoder/star_transformer.py
-'''
 
 class StarTransformer(nn.Module):
     """Star-Transformer Encoder part。
@@ -166,18 +163,23 @@ class MSA2(nn.Module):
 
 class StarTransformerEncoder(nn.Module):
 
-    def __init__(self, vocab_size, embeddings: nn.Embedding=None, embedding_dims=200, 
-                 use_attention=False, condition_attention=False,
+    def __init__(self, vocab_size, embeddings: nn.Embedding=None, 
+                 use_attention=False, condition_attention=False, tokenwise_attention=False, query_dims=None,
                  N=3, d_model=128, h=4, dropout=0.1):
 
         super(StarTransformerEncoder, self).__init__()
 
-        # this is poorly named since, of course, the transformer *always*
-        # uses self-attention; this refers to token-level attention over
-        # the article, which is distinct.
-        self.use_attention = False 
         self.d_model = d_model # hidden dims for transformer
 
+        # the use_attention flag determines whether we impose attention over
+        # *tokens*, which is independent of the self-attention mechanism
+        # used by the transformer
+        self.use_attention = use_attention
+        self.query_dims = query_dims
+
+        if self.use_attention:
+            self.attention_mechanism = TokenAttention(d_model, self.query_dims, condition_attention, tokenwise_attention)
+        
         if embeddings is None:
             self.embedding = nn.Embedding(vocab_size, embedding_dims)
         else:
@@ -192,20 +194,24 @@ class StarTransformerEncoder(nn.Module):
 
 
 
-    def forward(self, word_inputs : PaddedSequence, mask=None, query_v=None):
+    def forward(self, word_inputs : PaddedSequence, mask=None, query_v_for_attention=None, normalize_attention_distribution=True):
+            
+        embedded = self.embedding(word_inputs.data)
+        projected = self.projection_layer(embedded)
+        mask = word_inputs.mask().to("cuda")
+
+        # now to the star transformer.
+        # the model will return a tuple comprising <batch, words, dims> and a second
+        # tensor (the rely nodes) of <batch, dims> -- we take the latter
+        # in the case where no attention is to be used
+        token_vectors, a_v = self.st(projected, mask=mask) 
+        
         if self.use_attention:
-            raise Error("Attention not ready for star transformer yet")
-        else:
-            
-            embedded = self.embedding(word_inputs.data)
-            projected = self.projection_layer(embedded)
-            mask = word_inputs.mask().to("cuda")
+            a = self.attention_mechanism(token_vectors, query_v_for_attention, normalize=normalize_attention_distribution)
 
-
-            # now to the star transformer
-            # the model will return a tuple comprising <batch, words, dims> and a second
-            # tensor (the rely nodes) of <batch, dims> -- we take the latter.
-            _, a_v = self.st(projected, mask=mask) 
-             
-            
+            # note this is an element-wise multiplication, so each of the hidden states is weighted by the attention vector
+            weighted_hidden = torch.sum(a * token_vectors, dim=1)
+            #return output, weighted_hidden, a
+            a_v = weighted_hidden
+        
         return a_v
