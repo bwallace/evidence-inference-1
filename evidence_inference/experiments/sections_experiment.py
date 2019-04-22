@@ -38,7 +38,7 @@ def main():
                                               init_wvs_path="embeddings/PubMed-w2v.bin",
                                               weight_tying=False,
                                               ICO_encoder="CBoW",
-                                              article_encoder="GRU",
+                                              article_encoder="transformer",
                                               condition_attention=False,
                                               tokenwise_attention=False,
                                               tune_embeddings=False,

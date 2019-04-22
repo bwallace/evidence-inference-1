@@ -175,6 +175,7 @@ class StarTransformerEncoder(nn.Module):
         # *tokens*, which is independent of the self-attention mechanism
         # used by the transformer
         self.use_attention = use_attention
+        self.condition_attention = condition_attention
         self.query_dims = query_dims
 
         if self.use_attention:
@@ -195,7 +196,7 @@ class StarTransformerEncoder(nn.Module):
 
 
     def forward(self, word_inputs : PaddedSequence, mask=None, query_v_for_attention=None, normalize_attention_distribution=True):
-            
+           
         embedded = self.embedding(word_inputs.data)
         projected = self.projection_layer(embedded)
         mask = word_inputs.mask().to("cuda")
@@ -207,11 +208,11 @@ class StarTransformerEncoder(nn.Module):
         token_vectors, a_v = self.st(projected, mask=mask) 
         
         if self.use_attention:
+            token_vectors = PaddedSequence(token_vectors, word_inputs.batch_sizes, batch_first=True)
             a = self.attention_mechanism(token_vectors, query_v_for_attention, normalize=normalize_attention_distribution)
-
             # note this is an element-wise multiplication, so each of the hidden states is weighted by the attention vector
-            weighted_hidden = torch.sum(a * token_vectors, dim=1)
+            weighted_hidden = torch.sum(a * token_vectors.data, dim=1)
             #return output, weighted_hidden, a
             a_v = weighted_hidden
         
-        return a_v
+        return token_vectors, a_v, a

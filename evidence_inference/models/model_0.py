@@ -132,7 +132,7 @@ class GRUEncoder(nn.Module):
             # note that these hidden_input_states are masked to zeros (when appropriate) already when this is called.
             hidden_input_states = output
             a = self.attention_mechanism(hidden_input_states, query_v_for_attention, normalize=normalize_attention_distribution)
-
+            
             # note this is an element-wise multiplication, so each of the hidden states is weighted by the attention vector
             weighted_hidden = torch.sum(a * output.data, dim=1)
             return output, weighted_hidden, a
@@ -252,7 +252,7 @@ class InferenceNet(nn.Module):
             self.article_encoder = StarTransformerEncoder(vocab_size=vocab_size,
                                                       embeddings=init_embedding_weights,
                                                       d_model=h_size,
-                                                      use_attention=use_attention,
+                                                      use_attention=attention_over_article_tokens,
                                                       condition_attention=condition_attention)
         else:
             raise ValueError("Unknown article encoder type: {}".format(article_encoder))

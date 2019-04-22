@@ -191,5 +191,6 @@ def split_sections(instances, inference_vectorizer, big_sections = False):
     
     # cap number of sections...
     inst = [torch.LongTensor(inst) for inst in sections]
+    import pdb; pdb.set_trace()
     pad_sections = PaddedSequence.autopad(inst, batch_first=True, padding_value=unk_idx)
     return pad_sections, indices, section_labels, section_titles, Is, Cs, Os
