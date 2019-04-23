@@ -201,6 +201,24 @@ class StarTransformerEncoder(nn.Module):
         self.st = StarTransformer(d_model, N, h, d_model)
 
 
+    def _concat_relay_to_tokens_in_batches(self, article_token_batches, relay_batches, batch_sizes):
+        '''
+        Takes <batch x doc_len x embedding> tensor (article_token_batches) and builds and returns
+        a version <batch x doc_len x [embedding + relay_embedding]> which concatenates repeated
+        copies of the relay embedding associated with each batch.
+        '''
+        
+        import pdb; pdb.set_trace()
+        # create an empty <batch x (token emedding + relay_embedding)> 
+        article_tokens_with_relays = torch.zeros(article_token_batches.data.shape[0], 
+                                                 article_token_batches.data.shape[1]
+                                                 article_token_batches.data.shape[2] + relay_batches.shape[1])
+
+        for b in range(article_token_batches.data.shape[0]):
+            batch_relay = relay_batches[b].repeat(article_tokens_with_relays.shape[1], 1)
+            article_tokens_with_relays[b] = torch.cat((article_token_batches.data[b], batch_relay), 1)
+
+        return PaddedSequence(article_tokens_with_relays, batch_sizes, batch_first=True)
 
     def forward(self, word_inputs : PaddedSequence, mask=None, query_v_for_attention=None, normalize_attention_distribution=True):
            
@@ -218,8 +236,13 @@ class StarTransformerEncoder(nn.Module):
         if self.use_attention:
             token_vectors = PaddedSequence(token_vectors, word_inputs.batch_sizes, batch_first=True)
             if self.concat_relay:
+                ###
+                # need to concatenate a_v <batch x model_d> for all articles
+                ###
+                token_vectors_with_relay = self._concat_relay_to_tokens_in_batches(token_vectors, a_v, word_inputs.batch_sizes)
+                
                 #token_keys = torch.cat([hidden_input_states.data, query_v_for_attention], dim=2)
-                import pdb; pdb.set_trace()
+                #import pdb; pdb.set_trace()
                 '''
                 # the code below concatenates the query_v_for_attention (for a unit in the batch to each of the hidden states in the encoder)
                 # expand the query vector used for attention by making it |batch|x1x|query_vector_size|
