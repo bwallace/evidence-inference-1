@@ -253,6 +253,7 @@ class InferenceNet(nn.Module):
                                                       embeddings=init_embedding_weights,
                                                       d_model=h_size,
                                                       concat_relay=True,
+                                                      query_dims=self.ICO_dims,
                                                       use_attention=attention_over_article_tokens,
                                                       condition_attention=condition_attention)
         else:

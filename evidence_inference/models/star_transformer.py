@@ -208,17 +208,16 @@ class StarTransformerEncoder(nn.Module):
         copies of the relay embedding associated with each batch.
         '''
         
-        import pdb; pdb.set_trace()
         # create an empty <batch x (token emedding + relay_embedding)> 
         article_tokens_with_relays = torch.zeros(article_token_batches.data.shape[0], 
-                                                 article_token_batches.data.shape[1]
+                                                 article_token_batches.data.shape[1],
                                                  article_token_batches.data.shape[2] + relay_batches.shape[1])
 
         for b in range(article_token_batches.data.shape[0]):
             batch_relay = relay_batches[b].repeat(article_tokens_with_relays.shape[1], 1)
             article_tokens_with_relays[b] = torch.cat((article_token_batches.data[b], batch_relay), 1)
 
-        return PaddedSequence(article_tokens_with_relays, batch_sizes, batch_first=True)
+        return PaddedSequence(article_tokens_with_relays.to("cuda"), batch_sizes, batch_first=True)
 
     def forward(self, word_inputs : PaddedSequence, mask=None, query_v_for_attention=None, normalize_attention_distribution=True):
            
@@ -235,27 +234,17 @@ class StarTransformerEncoder(nn.Module):
 
         if self.use_attention:
             token_vectors = PaddedSequence(token_vectors, word_inputs.batch_sizes, batch_first=True)
+            a = None
             if self.concat_relay:
                 ###
                 # need to concatenate a_v <batch x model_d> for all articles
                 ###
                 token_vectors_with_relay = self._concat_relay_to_tokens_in_batches(token_vectors, a_v, word_inputs.batch_sizes)
                 
-                #token_keys = torch.cat([hidden_input_states.data, query_v_for_attention], dim=2)
-                #import pdb; pdb.set_trace()
-                '''
-                # the code below concatenates the query_v_for_attention (for a unit in the batch to each of the hidden states in the encoder)
-                # expand the query vector used for attention by making it |batch|x1x|query_vector_size|
-                query_v_for_attention = query_v_for_attention.unsqueeze(dim=1)
-                # duplicate it to be the same number of (max) tokens in the batch
-                query_v_for_attention = torch.cat(hidden_input_states.data.size()[1] * [query_v_for_attention], dim=1)
-                # finally, concatenate this vector to every "final" element of the input tensor
-                attention_inputs = torch.cat([hidden_input_states.data, query_v_for_attention], dim=2)
-
-                '''
-                pass 
-
-            a = self.attention_mechanism(token_vectors, query_v_for_attention, normalize=normalize_attention_distribution)
+                a = self.attention_mechanism(token_vectors_with_relay, query_v_for_attention, normalize=normalize_attention_distribution)
+            else:
+                a = self.attention_mechanism(token_vectors, query_v_for_attention, normalize=normalize_attention_distribution)
+          
             # note this is an element-wise multiplication, so each of the hidden states is weighted by the attention vector
             weighted_hidden = torch.sum(a * token_vectors.data, dim=1)
         
